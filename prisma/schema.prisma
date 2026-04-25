@@ -1,0 +1,492 @@
+// Prisma schema for Express Retail Pro
+// Online POS + Accounting/ERP for retail businesses
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  CASHIER
+  ACCOUNTANT
+}
+
+enum AccountType {
+  CASH
+  BANK
+}
+
+enum TxnType {
+  DEBIT
+  CREDIT
+}
+
+enum SalePaymentStatus {
+  PAID
+  DUE
+  PARTIAL
+}
+
+enum PurchasePaymentStatus {
+  PAID
+  DUE
+  PARTIAL
+}
+
+enum StockMoveReason {
+  PURCHASE
+  PURCHASE_RETURN
+  SALE
+  SALE_RETURN
+  TRANSFER_OUT
+  TRANSFER_IN
+  ADJUSTMENT
+  OPENING
+}
+
+enum SalaryStatus {
+  PENDING
+  PAID
+}
+
+model Branch {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  phone     String?
+  isMain    Boolean  @default(false)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users        User[]
+  stockItems   ProductStock[]
+  sales        Sale[]
+  purchases    Purchase[]
+  expenses     Expense[]
+  transfersOut StockTransfer[]   @relation("TransferFromBranch")
+  transfersIn  StockTransfer[]   @relation("TransferToBranch")
+  adjustments  StockAdjustment[]
+  employees    Employee[]
+  accounts     Account[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(CASHIER)
+  branchId     String?
+  branch       Branch?  @relation(fields: [branchId], references: [id])
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sales     Sale[]
+  purchases Purchase[]
+  expenses  Expense[]
+}
+
+model Setting {
+  id              String   @id @default(cuid())
+  companyName     String   @default("Express Retail Pro")
+  currency        String   @default("BDT")
+  currencySymbol  String   @default("৳")
+  language        String   @default("en") // en | bn
+  invoicePrefix   String   @default("INV-")
+  purchasePrefix  String   @default("PO-")
+  defaultBranchId String?
+  address         String?
+  phone           String?
+  email           String?
+  vatPercent      Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+}
+
+model Unit {
+  id        String    @id @default(cuid())
+  name      String    @unique // e.g. pcs, kg, ltr
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  products  Product[]
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  sku          String   @unique
+  name         String
+  barcode      String?
+  description  String?
+  categoryId   String?
+  category     Category? @relation(fields: [categoryId], references: [id])
+  unitId       String?
+  unit         Unit?    @relation(fields: [unitId], references: [id])
+  costPrice    Float    @default(0)
+  salePrice    Float    @default(0)
+  taxPercent   Float    @default(0)
+  reorderLevel Float    @default(0)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  stocks      ProductStock[]
+  saleItems   SaleItem[]
+  purchaseItems PurchaseItem[]
+  stockMoves    StockMove[]
+  transfers     StockTransfer[]
+  adjustments   StockAdjustment[]
+}
+
+model ProductStock {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  branchId  String
+  branch    Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  quantity  Float   @default(0)
+
+  @@unique([productId, branchId])
+  @@index([branchId])
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  openingDue Float   @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sales      Sale[]
+  ledger     CustomerLedger[]
+}
+
+model Supplier {
+  id         String   @id @default(cuid())
+  name       String
+  phone      String?
+  email      String?
+  address    String?
+  openingDue Float    @default(0)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  purchases Purchase[]
+  ledger    SupplierLedger[]
+}
+
+model CustomerLedger {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  date       DateTime @default(now())
+  refType    String // SALE | PAYMENT | RETURN | OPENING
+  refId      String?
+  debit      Float    @default(0) // increases due (sale)
+  credit     Float    @default(0) // decreases due (payment / return)
+  notes      String?
+
+  @@index([customerId, date])
+}
+
+model SupplierLedger {
+  id         String   @id @default(cuid())
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  date       DateTime @default(now())
+  refType    String // PURCHASE | PAYMENT | RETURN | OPENING
+  refId      String?
+  debit      Float    @default(0) // decreases due (we paid)
+  credit     Float    @default(0) // increases due (we owe)
+  notes      String?
+
+  @@index([supplierId, date])
+}
+
+model Sale {
+  id            String   @id @default(cuid())
+  invoiceNo     String   @unique
+  date          DateTime @default(now())
+  branchId      String
+  branch        Branch   @relation(fields: [branchId], references: [id])
+  customerId    String?
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  subtotal      Float    @default(0)
+  discount      Float    @default(0)
+  tax           Float    @default(0)
+  total         Float    @default(0)
+  paid          Float    @default(0)
+  due           Float    @default(0)
+  paymentStatus SalePaymentStatus @default(PAID)
+  notes         String?
+  voided        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  items   SaleItem[]
+  returns SaleReturn[]
+  payments AccountTxn[] @relation("SalePayments")
+
+  @@index([date])
+  @@index([branchId, date])
+}
+
+model SaleItem {
+  id        String  @id @default(cuid())
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Float
+  price     Float
+  discount  Float   @default(0)
+  taxPercent Float  @default(0)
+  total     Float
+}
+
+model SaleReturn {
+  id        String   @id @default(cuid())
+  saleId    String
+  sale      Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  date      DateTime @default(now())
+  amount    Float
+  reason    String?
+  items     SaleReturnItem[]
+  createdAt DateTime @default(now())
+}
+
+model SaleReturnItem {
+  id            String     @id @default(cuid())
+  saleReturnId  String
+  saleReturn    SaleReturn @relation(fields: [saleReturnId], references: [id], onDelete: Cascade)
+  productId     String
+  quantity      Float
+  price         Float
+  total         Float
+}
+
+model Purchase {
+  id            String   @id @default(cuid())
+  poNo          String   @unique
+  date          DateTime @default(now())
+  branchId      String
+  branch        Branch   @relation(fields: [branchId], references: [id])
+  supplierId    String
+  supplier      Supplier @relation(fields: [supplierId], references: [id])
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  subtotal      Float    @default(0)
+  discount      Float    @default(0)
+  tax           Float    @default(0)
+  total         Float    @default(0)
+  paid          Float    @default(0)
+  due           Float    @default(0)
+  paymentStatus PurchasePaymentStatus @default(DUE)
+  notes         String?
+  voided        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  items    PurchaseItem[]
+  returns  PurchaseReturn[]
+  payments AccountTxn[] @relation("PurchasePayments")
+
+  @@index([date])
+  @@index([branchId, date])
+}
+
+model PurchaseItem {
+  id         String   @id @default(cuid())
+  purchaseId String
+  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  quantity   Float
+  cost       Float
+  total      Float
+}
+
+model PurchaseReturn {
+  id         String   @id @default(cuid())
+  purchaseId String
+  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  date       DateTime @default(now())
+  amount     Float
+  reason     String?
+  items      PurchaseReturnItem[]
+  createdAt  DateTime @default(now())
+}
+
+model PurchaseReturnItem {
+  id               String         @id @default(cuid())
+  purchaseReturnId String
+  purchaseReturn   PurchaseReturn @relation(fields: [purchaseReturnId], references: [id], onDelete: Cascade)
+  productId        String
+  quantity         Float
+  cost             Float
+  total            Float
+}
+
+model StockMove {
+  id        String          @id @default(cuid())
+  productId String
+  product   Product         @relation(fields: [productId], references: [id])
+  branchId  String
+  date      DateTime        @default(now())
+  quantity  Float // positive = in, negative = out
+  reason    StockMoveReason
+  refId     String?
+  notes     String?
+
+  @@index([productId, date])
+  @@index([branchId, date])
+}
+
+model StockTransfer {
+  id           String   @id @default(cuid())
+  date         DateTime @default(now())
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id])
+  fromBranchId String
+  fromBranch   Branch   @relation("TransferFromBranch", fields: [fromBranchId], references: [id])
+  toBranchId   String
+  toBranch     Branch   @relation("TransferToBranch", fields: [toBranchId], references: [id])
+  quantity     Float
+  notes        String?
+  userId       String?
+  createdAt    DateTime @default(now())
+}
+
+model StockAdjustment {
+  id        String   @id @default(cuid())
+  date      DateTime @default(now())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  quantity  Float // signed
+  reason    String?
+  userId    String?
+  createdAt DateTime @default(now())
+}
+
+model ExpenseCategory {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  expenses  Expense[]
+}
+
+model Expense {
+  id         String           @id @default(cuid())
+  date       DateTime         @default(now())
+  branchId   String
+  branch     Branch           @relation(fields: [branchId], references: [id])
+  categoryId String?
+  category   ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  amount     Float
+  notes      String?
+  userId     String
+  user       User             @relation(fields: [userId], references: [id])
+  accountId  String?
+  account    Account?         @relation(fields: [accountId], references: [id])
+  createdAt  DateTime         @default(now())
+
+  @@index([date])
+}
+
+model Account {
+  id            String      @id @default(cuid())
+  name          String
+  type          AccountType
+  branchId      String?
+  branch        Branch?     @relation(fields: [branchId], references: [id])
+  bankName      String?
+  accountNumber String?
+  openingBalance Float      @default(0)
+  active        Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  txns     AccountTxn[]
+  expenses Expense[]
+}
+
+model AccountTxn {
+  id        String   @id @default(cuid())
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  date      DateTime @default(now())
+  type      TxnType
+  amount    Float
+  refType   String? // SALE | PURCHASE | EXPENSE | SALARY | DEPOSIT | WITHDRAW | OPENING | TRANSFER
+  refId     String?
+  notes     String?
+
+  saleId     String?
+  sale       Sale?     @relation("SalePayments", fields: [saleId], references: [id])
+  purchaseId String?
+  purchase   Purchase? @relation("PurchasePayments", fields: [purchaseId], references: [id])
+
+  @@index([accountId, date])
+}
+
+model Employee {
+  id          String   @id @default(cuid())
+  name        String
+  phone       String?
+  email       String?
+  designation String?
+  address     String?
+  joinDate    DateTime @default(now())
+  branchId    String?
+  branch      Branch?  @relation(fields: [branchId], references: [id])
+  baseSalary  Float    @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  salaries SalaryPayment[]
+}
+
+model SalaryPayment {
+  id          String       @id @default(cuid())
+  employeeId  String
+  employee    Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  monthYear   String // "2025-04"
+  amount      Float
+  bonus       Float        @default(0)
+  deduction   Float        @default(0)
+  netAmount   Float
+  status      SalaryStatus @default(PENDING)
+  paidDate    DateTime?
+  accountId   String?
+  notes       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([employeeId, monthYear])
+}
