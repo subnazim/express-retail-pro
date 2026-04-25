@@ -14,11 +14,11 @@ async function upsertMany<T extends AnyRow>(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const model = (tx as any)[modelName];
   for (const row of rows) {
-    const data = { ...row };
+    const { id, ...rest } = row;
     await model.upsert({
-      where: { id: row.id },
-      create: data,
-      update: data,
+      where: { id },
+      create: { id, ...rest },
+      update: rest,
     });
   }
 }
