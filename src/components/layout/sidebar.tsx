@@ -52,12 +52,19 @@ export function Sidebar({
   appName,
   tagline,
   labels,
+  allowedHrefs,
 }: {
   appName: string;
   tagline: string;
   labels: Record<string, string>;
+  allowedHrefs: string[];
 }) {
+  const allowed = new Set(allowedHrefs);
+  const visibleGroups = NAV_GROUPS
+    .map((g) => ({ ...g, items: g.items.filter((i) => allowed.has(i.href)) }))
+    .filter((g) => g.items.length > 0);
   const pathname = usePathname();
+  const groups = visibleGroups;
   return (
     <aside className="hidden lg:flex w-64 flex-col border-r bg-white sticky top-0 h-screen overflow-y-auto">
       <div className="px-5 py-4 border-b">
@@ -72,7 +79,7 @@ export function Sidebar({
         </div>
       </div>
       <nav className="px-2 py-3 flex-1 space-y-4">
-        {NAV_GROUPS.map((group, idx) => (
+        {groups.map((group, idx) => (
           <div key={idx}>
             {group.titleKey && (
               <div className="px-3 pb-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
