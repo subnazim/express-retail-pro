@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
 import { getT } from "@/lib/i18n/server";
 import { Sidebar } from "@/components/layout/sidebar";
+import { SIDEBAR_LABEL_KEYS } from "@/components/layout/nav-config";
 import { TopBar } from "@/components/layout/topbar";
 
 export default async function AppLayout({
@@ -14,15 +15,23 @@ export default async function AppLayout({
   if (!user) redirect("/login");
   const settings = await getSettings();
   const { locale, t } = await getT();
+  const sidebarLabels: Record<string, string> = {};
+  for (const k of SIDEBAR_LABEL_KEYS) {
+    sidebarLabels[k] = t(k);
+  }
   return (
     <div className="flex min-h-screen w-full bg-slate-50">
-      <Sidebar appName={settings.companyName} tagline={t("app.tagline")} t={t} />
+      <Sidebar
+        appName={settings.companyName}
+        tagline={t("app.tagline")}
+        labels={sidebarLabels}
+      />
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar
           userName={user.name}
-          userRole={user.role}
+          roleLabel={t(`users.role.${user.role}`)}
+          logoutLabel={t("auth.logout")}
           locale={locale}
-          t={t}
         />
         <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
