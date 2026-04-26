@@ -25,8 +25,13 @@ function startOfMonth(d = new Date()) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ denied?: string }>;
+}) {
   const { t } = await getT();
+  const { denied } = await searchParams;
   const money = await getMoney();
   const today = startOfDay();
   const month = startOfMonth();
@@ -169,6 +174,11 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader title={t("nav.dashboard")} />
+      {denied && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          You don&apos;t have access to <code className="font-mono">{denied}</code>.
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {stats.map((s) => {

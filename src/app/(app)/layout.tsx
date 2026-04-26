@@ -3,8 +3,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
 import { getT } from "@/lib/i18n/server";
 import { Sidebar } from "@/components/layout/sidebar";
-import { SIDEBAR_LABEL_KEYS } from "@/components/layout/nav-config";
+import { NAV_GROUPS, SIDEBAR_LABEL_KEYS } from "@/components/layout/nav-config";
 import { TopBar } from "@/components/layout/topbar";
+import { isAllowed } from "@/lib/access";
 
 export default async function AppLayout({
   children,
@@ -19,12 +20,19 @@ export default async function AppLayout({
   for (const k of SIDEBAR_LABEL_KEYS) {
     sidebarLabels[k] = t(k);
   }
+  const allowedHrefs: string[] = [];
+  for (const g of NAV_GROUPS) {
+    for (const item of g.items) {
+      if (isAllowed(user.role, item.href)) allowedHrefs.push(item.href);
+    }
+  }
   return (
     <div className="flex min-h-screen w-full bg-slate-50">
       <Sidebar
         appName={settings.companyName}
         tagline={t("app.tagline")}
         labels={sidebarLabels}
+        allowedHrefs={allowedHrefs}
       />
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar

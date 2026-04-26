@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/page-header";
 import { Database, Download } from "lucide-react";
+import { RestoreCard } from "./restore-card";
 
 export default async function BackupPage() {
   await requireRole(["ADMIN"]);
@@ -49,6 +50,7 @@ export default async function BackupPage() {
           </a>
         </CardContent>
       </Card>
+      <RestoreCard />
     </div>
   );
 }
