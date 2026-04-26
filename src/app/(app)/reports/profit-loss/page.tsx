@@ -28,44 +28,70 @@ export default async function ProfitLossPage({
   const sp = await searchParams;
   const { from, to } = parseRange(sp);
 
-  const [salesAgg, saleItems, purchaseRetAgg, expenseAgg, salaryAgg, saleReturnsAgg] =
-    await Promise.all([
-      prisma.sale.aggregate({
-        _sum: { total: true, discount: true, tax: true },
-        where: { voided: false, date: { gte: from, lte: to } },
-      }),
-      prisma.saleItem.findMany({
-        where: { sale: { voided: false, date: { gte: from, lte: to } } },
-        include: { product: true },
-      }),
-      prisma.purchaseReturn.aggregate({
-        _sum: { amount: true },
-        where: { date: { gte: from, lte: to } },
-      }),
-      prisma.expense.aggregate({
-        _sum: { amount: true },
-        where: { date: { gte: from, lte: to } },
-      }),
-      prisma.salaryPayment.aggregate({
-        _sum: { netAmount: true },
-        where: {
-          status: "PAID",
-          paidDate: { gte: from, lte: to },
-        },
-      }),
-      prisma.saleReturn.aggregate({
-        _sum: { amount: true },
-        where: { date: { gte: from, lte: to } },
-      }),
-    ]);
+  const [
+    salesAgg,
+    saleItems,
+    purchaseRetAgg,
+    expenseAgg,
+    salaryAgg,
+    saleReturnsAgg,
+    returnedItems,
+  ] = await Promise.all([
+    prisma.sale.aggregate({
+      _sum: { total: true, discount: true, tax: true },
+      where: { voided: false, date: { gte: from, lte: to } },
+    }),
+    prisma.saleItem.findMany({
+      where: { sale: { voided: false, date: { gte: from, lte: to } } },
+      include: { product: true },
+    }),
+    prisma.purchaseReturn.aggregate({
+      _sum: { amount: true },
+      where: { date: { gte: from, lte: to } },
+    }),
+    prisma.expense.aggregate({
+      _sum: { amount: true },
+      where: { date: { gte: from, lte: to } },
+    }),
+    prisma.salaryPayment.aggregate({
+      _sum: { netAmount: true },
+      where: {
+        status: "PAID",
+        paidDate: { gte: from, lte: to },
+      },
+    }),
+    prisma.saleReturn.aggregate({
+      _sum: { amount: true },
+      where: { date: { gte: from, lte: to } },
+    }),
+    prisma.saleReturnItem.findMany({
+      where: { saleReturn: { date: { gte: from, lte: to } } },
+    }),
+  ]);
+
+  const returnedProductIds = Array.from(
+    new Set(returnedItems.map((it) => it.productId)),
+  );
+  const returnedProducts = returnedProductIds.length
+    ? await prisma.product.findMany({
+        where: { id: { in: returnedProductIds } },
+        select: { id: true, costPrice: true },
+      })
+    : [];
+  const costById = new Map(returnedProducts.map((p) => [p.id, p.costPrice]));
 
   const grossSales = salesAgg._sum.total ?? 0;
   const saleReturns = saleReturnsAgg._sum.amount ?? 0;
   const netSales = grossSales - saleReturns;
-  const cogs = saleItems.reduce(
+  const grossCogs = saleItems.reduce(
     (a, it) => a + it.quantity * (it.product?.costPrice ?? 0),
     0,
   );
+  const returnedCogs = returnedItems.reduce(
+    (a, it) => a + it.quantity * (costById.get(it.productId) ?? 0),
+    0,
+  );
+  const cogs = grossCogs - returnedCogs;
   const purchaseReturns = purchaseRetAgg._sum.amount ?? 0;
   const grossProfit = netSales - cogs;
   const expenses = expenseAgg._sum.amount ?? 0;

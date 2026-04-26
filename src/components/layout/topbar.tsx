@@ -7,14 +7,14 @@ import { Button } from "@/components/ui/button";
 
 export function TopBar({
   userName,
-  userRole,
+  roleLabel,
+  logoutLabel,
   locale,
-  t,
 }: {
   userName: string;
-  userRole: string;
+  roleLabel: string;
+  logoutLabel: string;
   locale: "en" | "bn";
-  t: (key: string) => string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -35,7 +35,7 @@ export function TopBar({
       <div className="text-sm text-slate-500">
         <span className="font-medium text-slate-900">{userName}</span>
         <span className="mx-2">·</span>
-        <span>{t(`users.role.${userRole}`)}</span>
+        <span>{roleLabel}</span>
       </div>
       <div className="flex items-center gap-2">
         <div className="flex items-center rounded-md border bg-white text-xs">
@@ -59,7 +59,7 @@ export function TopBar({
         </div>
         <Button variant="ghost" size="sm" onClick={logout}>
           <LogOut className="h-4 w-4" />
-          {t("auth.logout")}
+          {logoutLabel}
         </Button>
       </div>
     </header>

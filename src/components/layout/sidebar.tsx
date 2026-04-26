@@ -24,100 +24,47 @@ import {
   Wallet,
   ArrowLeftRight,
 } from "lucide-react";
+import { NAV_GROUPS } from "./nav-config";
 
-type NavItem = {
-  href: string;
-  labelKey: string;
-  icon: React.ComponentType<{ className?: string }>;
+const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  LayoutDashboard,
+  ScanBarcode,
+  ShoppingCart,
+  Package,
+  Users,
+  Truck,
+  Warehouse,
+  Banknote,
+  Receipt,
+  UserCog,
+  Building2,
+  Settings,
+  Database,
+  BarChart3,
+  Tag,
+  Ruler,
+  ClipboardList,
+  Wallet,
+  ArrowLeftRight,
 };
-
-type NavGroup = {
-  titleKey: string;
-  items: NavItem[];
-};
-
-const groups: NavGroup[] = [
-  {
-    titleKey: "",
-    items: [
-      { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
-      { href: "/sales/pos", labelKey: "nav.pos", icon: ScanBarcode },
-    ],
-  },
-  {
-    titleKey: "Operations",
-    items: [
-      { href: "/sales", labelKey: "nav.sales", icon: ShoppingCart },
-      { href: "/purchases", labelKey: "nav.purchases", icon: Truck },
-      { href: "/stock", labelKey: "nav.stock", icon: Warehouse },
-      { href: "/stock/transfer", labelKey: "nav.stock_transfer", icon: ArrowLeftRight },
-      { href: "/stock/adjust", labelKey: "nav.stock_adjust", icon: ClipboardList },
-    ],
-  },
-  {
-    titleKey: "Inventory",
-    items: [
-      { href: "/products", labelKey: "nav.products", icon: Package },
-      { href: "/categories", labelKey: "nav.categories", icon: Tag },
-      { href: "/units", labelKey: "nav.units", icon: Ruler },
-    ],
-  },
-  {
-    titleKey: "Parties",
-    items: [
-      { href: "/customers", labelKey: "nav.customers", icon: Users },
-      { href: "/suppliers", labelKey: "nav.suppliers", icon: Truck },
-    ],
-  },
-  {
-    titleKey: "Finance",
-    items: [
-      { href: "/expenses", labelKey: "nav.expenses", icon: Receipt },
-      { href: "/expense-categories", labelKey: "nav.expense_categories", icon: Tag },
-      { href: "/cashbank", labelKey: "nav.cashbank", icon: Wallet },
-    ],
-  },
-  {
-    titleKey: "HR",
-    items: [
-      { href: "/employees", labelKey: "nav.employees", icon: UserCog },
-      { href: "/salary", labelKey: "nav.salary", icon: Banknote },
-    ],
-  },
-  {
-    titleKey: "Reports",
-    items: [
-      { href: "/reports/profit-loss", labelKey: "reports.profit_loss", icon: BarChart3 },
-      { href: "/reports/sales", labelKey: "reports.sales", icon: BarChart3 },
-      { href: "/reports/purchase", labelKey: "reports.purchase", icon: BarChart3 },
-      { href: "/reports/stock", labelKey: "reports.stock", icon: BarChart3 },
-      { href: "/reports/customer-due", labelKey: "reports.customer_due", icon: BarChart3 },
-      { href: "/reports/supplier-due", labelKey: "reports.supplier_due", icon: BarChart3 },
-      { href: "/reports/cash", labelKey: "reports.cash", icon: BarChart3 },
-      { href: "/reports/bank", labelKey: "reports.bank", icon: BarChart3 },
-    ],
-  },
-  {
-    titleKey: "Admin",
-    items: [
-      { href: "/branches", labelKey: "nav.branches", icon: Building2 },
-      { href: "/users", labelKey: "nav.users", icon: UserCog },
-      { href: "/settings", labelKey: "nav.settings", icon: Settings },
-      { href: "/backup", labelKey: "nav.backup", icon: Database },
-    ],
-  },
-];
 
 export function Sidebar({
   appName,
   tagline,
-  t,
+  labels,
+  allowedHrefs,
 }: {
   appName: string;
   tagline: string;
-  t: (key: string) => string;
+  labels: Record<string, string>;
+  allowedHrefs: string[];
 }) {
+  const allowed = new Set(allowedHrefs);
+  const visibleGroups = NAV_GROUPS
+    .map((g) => ({ ...g, items: g.items.filter((i) => allowed.has(i.href)) }))
+    .filter((g) => g.items.length > 0);
   const pathname = usePathname();
+  const groups = visibleGroups;
   return (
     <aside className="hidden lg:flex w-64 flex-col border-r bg-white sticky top-0 h-screen overflow-y-auto">
       <div className="px-5 py-4 border-b">
@@ -141,7 +88,7 @@ export function Sidebar({
             )}
             <ul className="space-y-0.5">
               {group.items.map((item) => {
-                const Icon = item.icon;
+                const Icon = ICONS[item.iconName] ?? Package;
                 const active =
                   pathname === item.href ||
                   (item.href !== "/dashboard" && pathname.startsWith(item.href));
@@ -157,7 +104,9 @@ export function Sidebar({
                       )}
                     >
                       <Icon className="h-4 w-4 flex-shrink-0" />
-                      <span className="truncate">{t(item.labelKey)}</span>
+                      <span className="truncate">
+                        {labels[item.labelKey] ?? item.labelKey}
+                      </span>
                     </Link>
                   </li>
                 );
